@@ -3,9 +3,15 @@ declare(strict_types=1);
 header('Content-Type: application/json; charset=utf-8');
 header('X-Content-Type-Options: nosniff');
 
-function respond(int $status, array $payload): never {
+function respond(int $status, array $payload): void {
     http_response_code($status);
-    echo json_encode($payload, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+    $encoded = json_encode($payload, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+    if ($encoded === false) {
+        http_response_code(500);
+        echo '{"error":"The server could not encode its response as JSON."}';
+        exit;
+    }
+    echo $encoded;
     exit;
 }
 
@@ -30,13 +36,9 @@ if (!is_array($sources)) {
 
 $validatedSources = [];
 foreach ($sources as $source) {
-    if (!is_string($source) || !filter_var($source, FILTER_VALIDATE_URL)) {
-        continue;
-    }
+    if (!is_string($source) || !filter_var($source, FILTER_VALIDATE_URL)) continue;
     $scheme = strtolower((string)parse_url($source, PHP_URL_SCHEME));
-    if (in_array($scheme, ['http', 'https'], true)) {
-        $validatedSources[] = $source;
-    }
+    if (in_array($scheme, ['http', 'https'], true)) $validatedSources[] = $source;
 }
 
 $uploaded = [];
@@ -49,12 +51,7 @@ if (isset($_FILES['documents']) && is_array($_FILES['documents']['name'] ?? null
         if (!in_array($extension, $allowed, true)) continue;
         $size = (int)($_FILES['documents']['size'][$i] ?? 0);
         if ($size > 10 * 1024 * 1024) continue;
-        // This starter reports metadata only; it does not store or execute uploads.
-        $uploaded[] = [
-            'name' => basename((string)$originalName),
-            'extension' => $extension,
-            'size_bytes' => $size
-        ];
+        $uploaded[] = ['name' => basename((string)$originalName), 'extension' => $extension, 'size_bytes' => $size];
     }
 }
 
